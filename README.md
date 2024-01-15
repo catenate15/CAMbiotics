@@ -5,74 +5,101 @@
 This repository contains the implementation of a deep learning model for binary classification of chemical compounds represented as SMILES (Simplified Molecular Input Line Entry System) strings. The model architecture combines convolutional neural networks (CNNs) and long short-term memory (LSTM) networks to identify  bioactive compounds for antimicrobial activity (Include the microbial specie the model was trained for). Additionally, it provides tools for interpreting the model's predictions, such as generating Class Activation Maps (CAMs) to highlight important structural motifs.
 
 ## Installation
+To set up the project, follow these steps:
 
-Before you can run the scripts, ensure that you have the following prerequisites installed:
+1. **Clone the Repository**
+   ```bash
+   git clone https://github.com/catenate15/CAMbiotics
+   cd your-repository
+   ```
 
-- Python 3.x
-- PyTorch
-- PyTorch Lightning
-- RDKit
-- Torchcam
-- Matplotlib
-- NumPy
-- Pandas
-- Scikit-learn
-
-You can install the necessary libraries by running:
-
-```bash
-pip install -r requirements.txt
-```
-
-Please note that RDKit might require a different installation approach depending on your operating system. Refer to the [official RDKit documentation](https://www.rdkit.org/docs/Install.html) for installation instructions.
+2. **Install Dependencies**
+   Ensure you have Python 3.8+ installed, then run:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 ## Usage
+To use the project, follow these steps:
 
-To train the model with your dataset, ensure that your CSV file is formatted correctly with the required columns: 'SMILES', 'TARGET', and 'COMPOUND_ID'. Then, run the following command:
+1. **Data Preprocessing**
+   Place your dataset in CSV format in the project directory and run:
+   ```bash
+   python main.py path/to/your-dataset.csv
+   ```
+
+2. **Training the Model**
+   The model training is initiated by the `main.py` script. Customize training parameters using command-line arguments.
+
+3. **Visualization**
+   To visualize the activation maps on SMILES strings:
+   ```bash
+   python visualization.py
+   ```
+
+## Project Structure
+- `data_preprocessing.py`: Module for preprocessing SMILES data.
+- `data_loader.py`: PyTorch data loading utility.
+- `model.py`: Definition of the CNN + LSTM model.
+- `visualization.py`: Visualization tools for activation maps.
+- `main.py`: Entry point for training and evaluating the model.
+
+## Modules Overview
+
+### 1. Data Preprocessing (`data_preprocessing.py`)
+
+This script is responsible for preparing the raw SMILES dataset for the machine learning pipeline. Key functionalities include:
+
+- **SMILES Augmentation**: Generates multiple augmented versions of each SMILES string to enrich the dataset.
+- **SMILES Encoding**: Converts SMILES strings into integer sequences based on a character-to-index mapping.
+- **Data Splitting**: Splits the dataset into training, validation, and test sets.
+- **File Generation**: Outputs processed data files and a JSON file for the character-to-index mapping.
+
+Run this script separately on a CPU for efficient processing.
+
+#### Usage
 
 ```bash
-python main.py path/to/your/dataset.csv
+python data_preprocessing.py <path_to_dataset.csv> --augment --num_augmentations 10
 ```
 
-### Parameters
+### 2. Model Training and Evaluation (`main.py`)
 
-You can fine-tune the model by specifying the following parameters:
+This is the central script for training and evaluating the neural network model. It handles:
 
-- `--vocab_size` : The size of the vocabulary (default is 100)
-- `--embedding_dim` : The size of the embedding vectors (default is 128)
-- `--cnn_filters` : The number of filters in the convolutional layers (default is 64)
-- `--lstm_units` : The number of units in the LSTM layer (default is 64)
-- `--output_size` : The number of units in the output layer (default is 1)
-- `--learning_rate` : The learning rate for the optimizer (default is 1e-3)
+- **Model Initialization**: Sets up the SMILESClassifier with specified hyperparameters.
+- **Data Loading**: Uses the preprocessed data for training and validation.
+- **Training Process**: Orchestrates the training and evaluation cycles using PyTorch Lightning.
 
-### Example
+This script is designed for GPU execution to leverage accelerated computing resources.
+
+#### Usage
 
 ```bash
-python main.py data.csv --vocab_size 120 --embedding_dim 150 --lstm_units 80
+python main.py --data_path <preprocessed_data_path> --epochs 10 --batch_size 64
 ```
 
-## Files and Modules Description
+### 3. Visualization (`visualization.py`)
 
-- `data_preprocessing.py`: Contains functions for loading data, encoding SMILES, padding sequences, and splitting the dataset.
-- `data_loader.py`: PyTorch Lightning data module for handling data loading.
-- `model.py`: Defines the SMILESClassifier, a neural network for SMILES classification.
-- `visualization.py`: Contains functions for generating and saving visualizations of the molecule with activation mappings.
-- `main.py`: The main script to train the model using the specified dataset and hyperparameters.
+After training, this script visualizes the activations of SMILES strings in the neural network. Key features include:
 
-## Contributing
+- **Activation Mapping**: Uses Grad-CAM to highlight which parts of the SMILES strings are most influential in the model's predictions.
+- **Molecular Visualization**: Renders the SMILES strings as 2D molecular structures with overlaid activations.
 
-Contributions to improve the model or any part of the project are welcome. Please feel free to fork the repository and submit pull requests.
+Run this script separately, as visualization can be resource-intensive.
 
-## License
+#### Usage
 
-Distributed under the MIT License. See `LICENSE` for more information.
+```bash
+python visualization.py
+```
 
-## Contact
+## Recommendations
 
+- Execute `data_preprocessing.py` first to prepare your dataset for training.
+- Follow with `main.py` for model training and evaluation.
+- Use `visualization.py` to generate insightful visualizations of the model's predictions.
+- Ensure that each script's dependencies and environment settings are correctly configured before execution.
 
-Project Link: https://github.com/catenate15/CAMbiotics
-
-## Acknowledgements
-
-
+---
 
