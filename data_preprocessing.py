@@ -18,7 +18,7 @@
 
 9. **Save Processed Data**: Finally, all processed data, including the one-hot encoded matrices and the split datasets, are saved to files for easy access during the machine learning model development phase.
 
-This workflow efficiently converts the raw SMILES strings into a structured format suitable for developing a predictive model for compound bioactivity."""
+This workflow efficiently converts the raw SMILES strings into a structured format suitable for developing a predictive model for compound bioactivity. """
 
 import argparse
 import pandas as pd
@@ -208,44 +208,44 @@ def filter_smiles(data, smiles_column, maxlen, unique_chars, base_file_path):
 
 
 
-def smiles_to_one_hot(smiles_list, smiles_chars_file, max_length, output_file):
-    """ Convert SMILES strings to one-hot encoded arrays and save them to a file."""
-    print("smiles_to_one_hot")
-    if not os.path.isfile(smiles_chars_file):
-        raise ValueError(f"SMILES characters file '{smiles_chars_file}' does not exist")
+# def smiles_to_one_hot(smiles_list, smiles_chars_file, max_length, output_file):
+#     """ Convert SMILES strings to one-hot encoded arrays and save them to a file."""
+#     print("smiles_to_one_hot")
+#     if not os.path.isfile(smiles_chars_file):
+#         raise ValueError(f"SMILES characters file '{smiles_chars_file}' does not exist")
 
-    with open(smiles_chars_file, 'r') as file:
-        smiles_chars = json.load(file)
+#     with open(smiles_chars_file, 'r') as file:
+#         smiles_chars = json.load(file)
 
-    # Creating a dictionary to map each character to a unique index
-    char_to_index = {char: idx for idx, char in enumerate(smiles_chars)}
+#     # Creating a dictionary to map each character to a unique index
+#     char_to_index = {char: idx for idx, char in enumerate(smiles_chars)}
 
-    print(f"Loaded {len(smiles_chars)} unique characters for SMILES encoding.")
+#     print(f"Loaded {len(smiles_chars)} unique characters for SMILES encoding.")
 
-    char_to_index = {c: i for i, c in enumerate(smiles_chars)}
-    one_hot_encoded = np.zeros((len(smiles_list), max_length, len(smiles_chars)), dtype=np.int8)
+#     char_to_index = {c: i for i, c in enumerate(smiles_chars)}
+#     one_hot_encoded = np.zeros((len(smiles_list), max_length, len(smiles_chars)), dtype=np.int8)
 
-    print(f"Initialized one-hot encoded array with shape: {one_hot_encoded.shape}")
+#     print(f"Initialized one-hot encoded array with shape: {one_hot_encoded.shape}")
 
-    for i, smiles in enumerate(smiles_list):
-        for j, char in enumerate(smiles):
-            if j >= max_length:
-                break
-            if j < len(smiles) - 1 and smiles[j:j+2] in char_to_index:
-                index = char_to_index[smiles[j:j+2]]
-                one_hot_encoded[i, j, index] = 1
-                j += 1  # Skip the next character
-            elif char in char_to_index:
-                index = char_to_index[char]
-                one_hot_encoded[i, j, index] = 1
+#     for i, smiles in enumerate(smiles_list):
+#         for j, char in enumerate(smiles):
+#             if j >= max_length:
+#                 break
+#             if j < len(smiles) - 1 and smiles[j:j+2] in char_to_index:
+#                 index = char_to_index[smiles[j:j+2]]
+#                 one_hot_encoded[i, j, index] = 1
+#                 j += 1  # Skip the next character
+#             elif char in char_to_index:
+#                 index = char_to_index[char]
+#                 one_hot_encoded[i, j, index] = 1
 
-    # Save the one-hot encoded array to a file
-    np.save(output_file, one_hot_encoded)
-    logger.info(f"One-hot encoded data saved to {output_file}")
+#     # Save the one-hot encoded array to a file
+#     np.save(output_file, one_hot_encoded)
+#     logger.info(f"One-hot encoded data saved to {output_file}")
 
-    print(f"One-hot encoded data saved. Array shape: {one_hot_encoded.shape}")
+#     print(f"One-hot encoded data saved. Array shape: {one_hot_encoded.shape}")
 
-    return one_hot_encoded
+#     return one_hot_encoded
 
 
 def smiles_augmenter(smiles, num_generator=10, shuffle_limit=1000):
@@ -274,47 +274,67 @@ def smiles_augmenter(smiles, num_generator=10, shuffle_limit=1000):
             permuted_smiles = Chem.MolToSmiles(Chem.RenumberAtoms(mol, p), canonical=False, isomericSmiles=True)
             smiles_set.add(permuted_smiles)
 
-        return list(smiles_set)
-
-    # For larger molecules, randomly permute atoms
-    count = 0
-    while len(smiles_set) < num_generator and count < shuffle_limit:
-        p = np.random.permutation(range(num_atoms))
-        new_smiles = Chem.MolToSmiles(Chem.RenumberAtoms(mol, p.tolist()), canonical=False, isomericSmiles=True)
-        smiles_set.add(new_smiles)  # Add new SMILES if not in the set already
-
-        count += 1
-
-    if len(smiles_set) < num_generator:
-        print(f"Warning: Only {len(smiles_set)} unique SMILES could be generated.")
+    else:
+        # For larger molecules, randomly permute atoms
+        count = 0
+        while len(smiles_set) < num_generator and count < shuffle_limit:
+            p = np.random.permutation(range(num_atoms))
+            new_smiles = Chem.MolToSmiles(Chem.RenumberAtoms(mol, p.tolist()), canonical=False, isomericSmiles=True)
+            smiles_set.add(new_smiles)  # Add new SMILES if not in the set already
+            count += 1
 
     return list(smiles_set)
 
 
 
 
+# def augment_data(data, num_augmentations, smiles_column, target_column):
+#     """
+#     Augment the data by randomizing the order of atoms and bonds and assign corresponding labels.
+
+#     Args:
+#         data (pd.DataFrame): The dataframe containing SMILES strings to augment.
+#         num_augmentations (int): The number of augmented SMILES strings to generate for each original SMILES.
+#         smiles_column (str): The column name in the dataframe where SMILES strings are located.
+#         target_column (str): The column name in the dataframe where target labels are located.
+
+#     Returns:
+#         pd.DataFrame: A dataframe with the augmented SMILES strings and corresponding labels.
+#     """
+#     print("Executing augment_data")
+#     augmented_smiles = []
+#     augmented_labels = []
+
+#     for _, row in data.iterrows():
+#         original_smiles = row[smiles_column]
+#         label = row[target_column]
+#         augmented_smiles.extend([original_smiles] + smiles_augmenter(original_smiles, num_generator=num_augmentations))
+#         augmented_labels.extend([label] * (num_augmentations + 1))
+
+#     augmented_data = pd.DataFrame({
+#         smiles_column: augmented_smiles,
+#         target_column: augmented_labels
+#     })
+
+#     return augmented_data
+
+
 def augment_data(data, num_augmentations, smiles_column, target_column):
-    """
-    Augment the data by randomizing the order of atoms and bonds and assign corresponding labels.
-
-    Args:
-        data (pd.DataFrame): The dataframe containing SMILES strings to augment.
-        num_augmentations (int): The number of augmented SMILES strings to generate for each original SMILES.
-        smiles_column (str): The column name in the dataframe where SMILES strings are located.
-        target_column (str): The column name in the dataframe where target labels are located.
-
-    Returns:
-        pd.DataFrame: A dataframe with the augmented SMILES strings and corresponding labels.
-    """
-    print("Executing augment_data")
     augmented_smiles = []
     augmented_labels = []
 
     for _, row in data.iterrows():
         original_smiles = row[smiles_column]
         label = row[target_column]
-        augmented_smiles.extend([original_smiles] + smiles_augmenter(original_smiles, num_generator=num_augmentations))
-        augmented_labels.extend([label] * (num_augmentations + 1))
+        aug_smiles = smiles_augmenter(original_smiles, num_generator=num_augmentations)
+
+        # Ensure the number of augmentations is consistent
+        aug_smiles = aug_smiles[:num_augmentations]
+        num_to_add = num_augmentations - len(aug_smiles)
+        aug_smiles.extend([original_smiles] * num_to_add)
+
+        augmented_smiles.extend([original_smiles] + aug_smiles)
+        augmented_labels.extend([label] * (len(aug_smiles) + 1))
 
     augmented_data = pd.DataFrame({
         smiles_column: augmented_smiles,
@@ -324,34 +344,42 @@ def augment_data(data, num_augmentations, smiles_column, target_column):
     return augmented_data
 
 
+# def pad_one_hot_sequences(one_hot_sequences_file, maxlen_file):
+#     print(f"Loading maximum sequence length from: {maxlen_file}")
+#     if not os.path.isfile(one_hot_sequences_file):
+#         raise ValueError(f"One-hot encoded sequences file '{one_hot_sequences_file}' does not exist")
+#     one_hot_sequences = np.load(one_hot_sequences_file)
+#     print(f"Loaded one-hot encoded sequences from: {one_hot_sequences_file}")
+#     with open(maxlen_file, 'r') as f:
+#         maxlen = int(f.read().strip())
+#         print(f"Reading maxlen from file: {maxlen_file}")
 
 
-def pad_one_hot_sequences(one_hot_sequences_file, maxlen_file):
-    print(f"Loading maximum sequence length from: {maxlen_file}")
-    if not os.path.isfile(one_hot_sequences_file):
-        raise ValueError(f"One-hot encoded sequences file '{one_hot_sequences_file}' does not exist")
-    one_hot_sequences = np.load(one_hot_sequences_file)
-    print(f"Loaded one-hot encoded sequences from: {one_hot_sequences_file}")
-    with open(maxlen_file, 'r') as f:
-        maxlen = int(f.read().strip())
-        print(f"Reading maxlen from file: {maxlen_file}")
+#     print(f"Loaded maxlen: {maxlen}")
+#     one_hot_length = one_hot_sequences.shape[2]
+#     print(f"One-hot length (number of unique characters): {one_hot_length}")
 
+#     padded_sequences = np.zeros((one_hot_sequences.shape[0], maxlen, one_hot_length), dtype=np.int8)
+#     print(f"Initialized padded array. Shape: {padded_sequences.shape}")
 
-    print(f"Loaded maxlen: {maxlen}")
-    one_hot_length = one_hot_sequences.shape[2]
-    print(f"One-hot length (number of unique characters): {one_hot_length}")
+#     for idx, sequence in enumerate(one_hot_sequences):
+#         length = min(sequence.shape[0], maxlen)
+#         padded_sequences[idx, :length, :] = sequence[:length]
+#         if idx < 5:  # Print details for the first 5 sequences
+#             print(f"Padded sequence {idx+1}: Length before padding: {sequence.shape[0]}, Length after padding: {length}")
 
-    padded_sequences = np.zeros((one_hot_sequences.shape[0], maxlen, one_hot_length), dtype=np.int8)
-    print(f"Initialized padded array. Shape: {padded_sequences.shape}")
+#     return padded_sequences
 
-    for idx, sequence in enumerate(one_hot_sequences):
+def pad_one_hot_sequences(sequences, maxlen):
+    """ Pad one-hot encoded sequences to a maximum length"""
+    one_hot_length = sequences.shape[2]
+    padded_sequences = np.zeros((len(sequences), maxlen, one_hot_length), dtype=np.int8)
+
+    for idx, sequence in enumerate(sequences):
         length = min(sequence.shape[0], maxlen)
         padded_sequences[idx, :length, :] = sequence[:length]
-        if idx < 5:  # Print details for the first 5 sequences
-            print(f"Padded sequence {idx+1}: Length before padding: {sequence.shape[0]}, Length after padding: {length}")
 
     return padded_sequences
-
 
 
 
@@ -370,47 +398,63 @@ def save_class_proportions(proportions, file_path):
     logger.info(f"Class proportions saved to {file_path}")
     print(f" Class proportions saved to {file_path}")
 
+def log_and_save_class_proportions(labels, base_file_path):
+    class_counts = labels.value_counts()
+    total_count = len(labels)
+    class_proportions = class_counts / total_count
+    logger.info("Dataset class proportions:")
+    for value, count in class_counts.items():
+        logger.info(f"  Class {value}: {count} counts, {class_proportions[value] * 100:.2f}%")
+
+    # Save class proportions to a CSV file
+    proportions_df = pd.DataFrame({'Class': class_counts.index, 'Proportion': class_proportions.values})
+    proportions_file = f"{base_file_path}_class_proportions.csv"
+    proportions_df.to_csv(proportions_file, index=False)
+    logger.info(f"Class proportions saved to {proportions_file}")
 
 
 
-def split_and_save_data(smiles, labels, base_file_path, train_size=0.7, valid_size=0.15, test_size=0.15):
+def split_and_save_data(features, labels, base_file_path, train_size=0.7, valid_size=0.15, test_size=0.15):
     # Ensure the sum of sizes equals 1
-    if train_size + valid_size + test_size != 1.0:
+    if not np.isclose(train_size + valid_size + test_size, 1.0):
         raise ValueError("Sum of train, validation, and test sizes must equal 1")
 
-    try:
-        # Split data into training and temp (validation + test)
-        X_train, X_temp, y_train, y_temp = train_test_split(
-            smiles, labels, train_size=train_size, random_state=42, stratify=labels
-        )
-    except ValueError as e:
-        logger.error(f"An error occurred during stratified splitting: {e}")
-        # Consider fallback strategies, such as not using stratification:
-        X_train, X_temp, y_train, y_temp = train_test_split(
-            smiles, labels, train_size=train_size, random_state=42
-        )
-
+    # Split data into training and temp (validation + test)
+    X_train, X_temp, y_train, y_temp = train_test_split(
+        features, labels, train_size=train_size, random_state=42, stratify=labels
+    )
+    
     # Calculate the relative sizes of validation and test sets from the remaining dataset
     temp_size = 1.0 - train_size
     relative_valid_size = valid_size / temp_size
-    # relative_test_size is implied to be the rest of the temp_size
-
+    
     # Split temp into validation and test
     X_valid, X_test, y_valid, y_test = train_test_split(
         X_temp, y_temp, test_size=relative_valid_size, random_state=42, stratify=y_temp
     )
 
-    # Save the datasets to files
-    datasets = {'Train': (X_train, y_train), 'Valid': (X_valid, y_valid), 'Test': (X_test, y_test)}
-    paths = {}
-    for dataset_name, (X, y) in datasets.items():
-        df = pd.DataFrame({'Encoded_SMILES': list(X), 'Activity': y})
-        save_path = f"{base_file_path}_{dataset_name}.csv"
-        df.to_csv(save_path, index=False)
-        paths[f'{dataset_name.lower()}_path'] = save_path
-        logger.info(f"Processed {dataset_name} data saved to {save_path}")
-    print(f"Processed {dataset_name} data saved to {save_path}")
-    return paths
+    # Save the datasets to .npy and .csv files
+    np.save(f'{base_file_path}_train_features.npy', X_train)
+    pd.DataFrame({'Activity': y_train}).to_csv(f'{base_file_path}_train_labels.csv', index=False)
+    
+
+    np.save(f'{base_file_path}_valid_features.npy', X_valid)
+    pd.DataFrame({'Activity': y_valid}).to_csv(f'{base_file_path}_valid_labels.csv', index=False)
+
+    np.save(f'{base_file_path}_test_features.npy', X_test)
+    pd.DataFrame({'Activity' : y_test}).to_csv(f'{base_file_path}_test_labels.csv', index=False)
+
+    logger.info(f"Data split and saved to {base_file_path}_train_features.npy, {base_file_path}_valid_features.npy, {base_file_path}_test_features.npy and corresponding label .csv files")
+
+    return {
+        'train_features': f'{base_file_path}_train_features.npy',
+        'valid_features': f'{base_file_path}_valid_features.npy',
+        'test_features': f'{base_file_path}_test_features.npy',
+        'train_labels': f'{base_file_path}_train_labels.csv',
+        'valid_labels': f'{base_file_path}_valid_labels.csv',
+        'test_labels': f'{base_file_path}_test_labels.csv'
+    }
+
 
 
 
@@ -419,21 +463,37 @@ def preprocess_data(file_path, smiles_column='SMILES', target_column='TARGET', a
     
     """ Preprocess data and save the processed files. """
     base_file_path, _ = os.path.splitext(file_path)
-    # Check if the processed files already exist before starting the preprocessing
-    processed_files_exist = all(os.path.exists(f"{base_file_path}_{dataset_name}.csv") for dataset_name in ['Train', 'Valid', 'Test'])
+     # Check if the processed files already exist
+    processed_files_exist = all(
+        os.path.exists(f"{base_file_path}_{suffix}.npy") or os.path.exists(f"{base_file_path}_{suffix}.csv")
+        for suffix in ['train_features', 'valid_features', 'test_features', 
+                       'train_labels', 'valid_labels', 'test_labels']
+    )
+
+    if processed_files_exist:
+        logger.info("Processed .npy and .csv files already exist. Skipping preprocessing.")
+        return {
+            'train_features': f'{base_file_path}_train_features.npy',
+            'valid_features': f'{base_file_path}_valid_features.npy',
+            'test_features': f'{base_file_path}_test_features.npy',
+            'train_labels': f'{base_file_path}_train_labels.csv',
+            'valid_labels': f'{base_file_path}_valid_labels.csv',
+            'test_labels': f'{base_file_path}_test_labels.csv'
+        }
+
 
     # Load data
     data = load_data(file_path, [smiles_column, target_column])
     logger.info("Initial class proportions:")
     log_class_proportions(data[target_column], "Initial")
     logger.info(f"Data loaded with {len(data)} records")
-    
+
     # Determine unique characters
     unique_chars_path = f"{base_file_path}_unique_chars.json"
     unique_chars = get_unique_chars(data, smiles_column, unique_chars_path)
 
     # Call get_maxlen to ensure the creation of maxlen file
-    maxlen = get_maxlen(data, smiles_column, file_path)  # Assuming get_maxlen is updated to handle file_path correctly
+    maxlen = get_maxlen(data, smiles_column, file_path)
 
 
     # Now, you can safely load maxlen from the text file
@@ -451,7 +511,6 @@ def preprocess_data(file_path, smiles_column='SMILES', target_column='TARGET', a
     filtered_data = filter_smiles(data, smiles_column, maxlen, unique_chars, base_file_path)
     print("After filtering: ", len(filtered_data))
     logger.info(f"Data filtered to {len(filtered_data)} records")
-
 
 
     # Check lengths after filtering
@@ -482,44 +541,34 @@ def preprocess_data(file_path, smiles_column='SMILES', target_column='TARGET', a
 
     # Convert SMILES to one-hot encoding
     print("Converting SMILES to one-hot encoding...")
-    one_hot_output_file = f"{base_file_path}_one_hot_encoded.npy"
     one_hot_encoded = smiles_to_sequences(data[smiles_column].tolist(), char_to_index, maxlen)
-    np.save(one_hot_output_file, one_hot_encoded)  # Save the one-hot encoded data
 
-    print(f"Padding one-hot encoded sequences with maxlen file: {maxlen_file}")
-    padded_smiles = pad_one_hot_sequences(one_hot_output_file, maxlen_file)
+    # Pad the one-hot encoded sequences
+    print("Padding one-hot encoded sequences...")
+    padded_smiles = pad_one_hot_sequences(one_hot_encoded, maxlen)
 
-    # padded_smiles = pad_one_hot_sequences(one_hot_output_file, maxlen)
-    print(f"SMILES array shape (after padding): {padded_smiles.shape}")
-    print(f"Labels series length: {len(data[target_column])}")
-
+    # Extract labels
+    labels = data[target_column].values
 
     # Split the data and save the split datasets
     print("Splitting data into train, validation, and test sets...")
-    saved_paths = split_and_save_data(padded_smiles, data[target_column], base_file_path)
-    print(f"Saved paths: {saved_paths}")
+    saved_paths = split_and_save_data(padded_smiles, labels, base_file_path)
 
-
-    # Log and save class proportions for each dataset
-    class_proportions_all = {}
-    if processed_files_exist:
-        logger.info("Processed files already exist. Logging class proportions.")
-        for dataset_name in ['Train', 'Valid', 'Test']:
-            dataset = pd.read_csv(f"{base_file_path}_{dataset_name}.csv")
-            log_class_proportions(dataset['Activity'], dataset_name)
-            class_proportions_all[dataset_name] = dataset['Activity'].value_counts(normalize=True).to_dict()
-    else:
-        for dataset_name in ['Train', 'Valid', 'Test']:
-            dataset_path = saved_paths[f"{dataset_name.lower()}_path"]
-            dataset = pd.read_csv(dataset_path)
-            log_class_proportions(dataset['Activity'], dataset_name)
-            class_proportions_all[dataset_name] = dataset['Activity'].value_counts(normalize=True).to_dict()
-            save_class_proportions(class_proportions_all, f"{base_file_path}_class_proportions.csv")
-
-    print("Splitting data into train, validation, and test sets...")
-    print(f"Data types - SMILES: {type(padded_smiles)}, Labels: {type(data[target_column])}")
-    print(f"SMILES array shape: {padded_smiles.shape}, Labels series length: {len(data[target_column])}")
+    # Log and save class proportions
+    for split_name, split_path in saved_paths.items():
+        if 'labels' in split_path:
+            split_labels = pd.read_csv(split_path)['Activity']
+            logger.info(f"Class proportions in {split_name} set:")
+            log_class_proportions(split_labels, split_name.capitalize())
+    
+    #   Output the data types and shapes
+    print(f"Data types - SMILES: {type(one_hot_encoded)}, Labels: {type(labels)}")
+    print(f"SMILES array shape: {one_hot_encoded.shape}, Labels series length: {len(labels)}")
+    
     return saved_paths  # Return the paths to the processed files
+
+    
+
 
 
 
@@ -534,7 +583,7 @@ def main(csv_file):
     """
     try:
         # Run the preprocessing function with the path to the CSV file
-        processed_paths = preprocess_data(csv_file, augment=True, num_augmentations=10)
+        processed_paths = preprocess_data(csv_file, augment=True, num_augmentations=10) # set to False for no augmentation
         print(f"Data preprocessing completed. Files saved at: {processed_paths}")
     except Exception as e:
         print(f"An error occurred during data preprocessing: {e}")
