@@ -208,45 +208,6 @@ def filter_smiles(data, smiles_column, maxlen, unique_chars, base_file_path):
 
 
 
-# def smiles_to_one_hot(smiles_list, smiles_chars_file, max_length, output_file):
-#     """ Convert SMILES strings to one-hot encoded arrays and save them to a file."""
-#     print("smiles_to_one_hot")
-#     if not os.path.isfile(smiles_chars_file):
-#         raise ValueError(f"SMILES characters file '{smiles_chars_file}' does not exist")
-
-#     with open(smiles_chars_file, 'r') as file:
-#         smiles_chars = json.load(file)
-
-#     # Creating a dictionary to map each character to a unique index
-#     char_to_index = {char: idx for idx, char in enumerate(smiles_chars)}
-
-#     print(f"Loaded {len(smiles_chars)} unique characters for SMILES encoding.")
-
-#     char_to_index = {c: i for i, c in enumerate(smiles_chars)}
-#     one_hot_encoded = np.zeros((len(smiles_list), max_length, len(smiles_chars)), dtype=np.int8)
-
-#     print(f"Initialized one-hot encoded array with shape: {one_hot_encoded.shape}")
-
-#     for i, smiles in enumerate(smiles_list):
-#         for j, char in enumerate(smiles):
-#             if j >= max_length:
-#                 break
-#             if j < len(smiles) - 1 and smiles[j:j+2] in char_to_index:
-#                 index = char_to_index[smiles[j:j+2]]
-#                 one_hot_encoded[i, j, index] = 1
-#                 j += 1  # Skip the next character
-#             elif char in char_to_index:
-#                 index = char_to_index[char]
-#                 one_hot_encoded[i, j, index] = 1
-
-#     # Save the one-hot encoded array to a file
-#     np.save(output_file, one_hot_encoded)
-#     logger.info(f"One-hot encoded data saved to {output_file}")
-
-#     print(f"One-hot encoded data saved. Array shape: {one_hot_encoded.shape}")
-
-#     return one_hot_encoded
-
 
 def smiles_augmenter(smiles, num_generator=10, shuffle_limit=1000):
     """
@@ -288,37 +249,6 @@ def smiles_augmenter(smiles, num_generator=10, shuffle_limit=1000):
 
 
 
-# def augment_data(data, num_augmentations, smiles_column, target_column):
-#     """
-#     Augment the data by randomizing the order of atoms and bonds and assign corresponding labels.
-
-#     Args:
-#         data (pd.DataFrame): The dataframe containing SMILES strings to augment.
-#         num_augmentations (int): The number of augmented SMILES strings to generate for each original SMILES.
-#         smiles_column (str): The column name in the dataframe where SMILES strings are located.
-#         target_column (str): The column name in the dataframe where target labels are located.
-
-#     Returns:
-#         pd.DataFrame: A dataframe with the augmented SMILES strings and corresponding labels.
-#     """
-#     print("Executing augment_data")
-#     augmented_smiles = []
-#     augmented_labels = []
-
-#     for _, row in data.iterrows():
-#         original_smiles = row[smiles_column]
-#         label = row[target_column]
-#         augmented_smiles.extend([original_smiles] + smiles_augmenter(original_smiles, num_generator=num_augmentations))
-#         augmented_labels.extend([label] * (num_augmentations + 1))
-
-#     augmented_data = pd.DataFrame({
-#         smiles_column: augmented_smiles,
-#         target_column: augmented_labels
-#     })
-
-#     return augmented_data
-
-
 def augment_data(data, num_augmentations, smiles_column, target_column):
     augmented_smiles = []
     augmented_labels = []
@@ -344,31 +274,6 @@ def augment_data(data, num_augmentations, smiles_column, target_column):
     return augmented_data
 
 
-# def pad_one_hot_sequences(one_hot_sequences_file, maxlen_file):
-#     print(f"Loading maximum sequence length from: {maxlen_file}")
-#     if not os.path.isfile(one_hot_sequences_file):
-#         raise ValueError(f"One-hot encoded sequences file '{one_hot_sequences_file}' does not exist")
-#     one_hot_sequences = np.load(one_hot_sequences_file)
-#     print(f"Loaded one-hot encoded sequences from: {one_hot_sequences_file}")
-#     with open(maxlen_file, 'r') as f:
-#         maxlen = int(f.read().strip())
-#         print(f"Reading maxlen from file: {maxlen_file}")
-
-
-#     print(f"Loaded maxlen: {maxlen}")
-#     one_hot_length = one_hot_sequences.shape[2]
-#     print(f"One-hot length (number of unique characters): {one_hot_length}")
-
-#     padded_sequences = np.zeros((one_hot_sequences.shape[0], maxlen, one_hot_length), dtype=np.int8)
-#     print(f"Initialized padded array. Shape: {padded_sequences.shape}")
-
-#     for idx, sequence in enumerate(one_hot_sequences):
-#         length = min(sequence.shape[0], maxlen)
-#         padded_sequences[idx, :length, :] = sequence[:length]
-#         if idx < 5:  # Print details for the first 5 sequences
-#             print(f"Padded sequence {idx+1}: Length before padding: {sequence.shape[0]}, Length after padding: {length}")
-
-#     return padded_sequences
 
 def pad_one_hot_sequences(sequences, maxlen):
     """ Pad one-hot encoded sequences to a maximum length"""
