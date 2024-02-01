@@ -1,5 +1,3 @@
-# data_loader.py to test python data_loader.py --base_file_path ./path/to/dataset/folder
-
 
 import os
 import torch
@@ -20,11 +18,11 @@ class SMILESDataset(Dataset):
     """
     def __init__(self, features_file, labels_file):
         """__init__ method to load features and labels"""
-        print(f"Loading features from {features_file} ")
+        logger.info(f"Loading features from {features_file} ")
         self.features = np.load(features_file)
-        print(f"Loading labels from {labels_file} ") 
+        logger.info(f"Loading labels from {labels_file} ") 
         self.labels = pd.read_csv(labels_file)['TARGET'].values
-        print(f"Dataset Loaded succesfully with {len(self.features)} SMILES strings with {len(self.labels)} labels.")
+        logger.info(f"Dataset Loaded successfully with {len(self.features)} SMILES strings with {len(self.labels)} labels.")
 
     def __len__(self):
         """len' method to return the number of SMILES strings in the dataset"""
@@ -39,7 +37,7 @@ class SMILESDataset(Dataset):
 
 class SMILESDataModule(pl.LightningDataModule):
     """
-    PyTorch Lightning DataModule for SMILES datasets.class contains three methods: setup, train_dataloader, val_dataloader, test_dataloader
+    PyTorch Lightning DataModule for SMILES datasets. Contains methods: setup, train_dataloader, val_dataloader, test_dataloader.
     """
     def __init__(self, base_file_path, base_file_name, batch_size=32):
         super().__init__()
@@ -48,32 +46,33 @@ class SMILESDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
 
     def setup(self, stage=None):
+        # Load the datasets
+        standardized_prefix = 'STANDARDIZED_'
         self.train_dataset = SMILESDataset(
-            os.path.join(self.base_file_path, f'{self.base_file_name}_train_features.npy'),
-            os.path.join(self.base_file_path, f'{self.base_file_name}_train_labels.csv')
+            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_train_features.npy'),
+            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_train_labels.csv')
         )
         self.val_dataset = SMILESDataset(
-            os.path.join(self.base_file_path, f'{self.base_file_name}_valid_features.npy'),
-            os.path.join(self.base_file_path, f'{self.base_file_name}_valid_labels.csv')
+            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_valid_features.npy'),
+            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_valid_labels.csv')
         )
         self.test_dataset = SMILESDataset(
-            os.path.join(self.base_file_path, f'{self.base_file_name}_test_features.npy'),
-            os.path.join(self.base_file_path, f'{self.base_file_name}_test_labels.csv')
+            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_test_features.npy'),
+            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_test_labels.csv')
         )
 
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=4) # chanege num_workers=0 when using windows
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0) # shuffle is true because we want to shuffle the data during training to avoid the model from learning the order of the data
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=4)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=0)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=4)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=0)
 
 
 if __name__ == '__main__':
-
     parser = ArgumentParser(description='SMILES Data Loading')
     parser.add_argument('--base_file_path', type=str, required=True, help='Base file path for the dataset files.')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size for data loading.')
@@ -81,12 +80,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     data_module = SMILESDataModule(base_file_path=args.base_file_path, batch_size=args.batch_size)
-    data_module.setup(stage='fit') # Setup data for training
+    data_module.setup(stage='fit') 
 
-    # Example to iterate over batches in the training data loader
-    print("Iterating over training batches:")
+    logger.info("Iterating over training batches:")
     for i, batch in enumerate(data_module.train_dataloader()):
         inputs, labels = batch
-        print(f"Batch {i}: tensor type {inputs.dtype}, Batch size: {len(inputs)}")
-        if i == 2:  # Limit to first few batches for testing
+        logger.info(f"Batch {i}: tensor type {inputs.dtype}, Batch size: {len(inputs)}")
+        if i == 2:
             break
+
+
