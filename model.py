@@ -9,43 +9,36 @@ from data_preprocessing2 import smiles_chars
 from torch.nn import MultiheadAttention
 
 class ConvLSTMCAMbiotic(pl.LightningModule):
-    """ConvLSTMCAMbiotic model for classification of SMILES strings with attention mechanism."""
     def __init__(self, base_filename, num_cnn_layers, num_lstm_layers, hidden_dim, output_size, learning_rate, vocab_size, attention_heads):
         super().__init__()
         self.save_hyperparameters()
+        self.vocab_size = vocab_size  # Store vocab_size from arguments
+        
+        
+        # Initialize dictionaries for activations and gradients
+        self.activations = {}
+        self.gradients = {}
 
-        # Initialize variables for feature maps and gradients
-        self.feature_maps = None
-        self.gradients = None
-        self.hook_registered = False
-
-        # Number of unique characters in the SMILES vocabulary
-        num_smiles_chars = len(smiles_chars)
-
-        # Convolutional layers
+        # Define convolutional layers dynamically with vocab_size
         self.convs = nn.ModuleList([
             nn.Sequential(
-                nn.Conv1d(in_channels=num_smiles_chars if i == 0 else hidden_dim,
+                nn.Conv1d(in_channels=len(smiles_chars)  if i == 0 else hidden_dim,
                           out_channels=hidden_dim, kernel_size=3, padding='same'),
                 nn.ReLU(),
                 nn.MaxPool1d(kernel_size=2),
                 nn.Dropout(0.3),
-                nn.BatchNorm1d(num_features=hidden_dim)
+                nn.BatchNorm1d(hidden_dim)
             ) for i in range(num_cnn_layers)
         ])
 
         # LSTM layers
-        self.lstm = nn.LSTM(input_size=hidden_dim, hidden_size=hidden_dim,
-                            batch_first=True, num_layers=num_lstm_layers)
+        self.lstm = nn.LSTM(input_size=hidden_dim, hidden_size=hidden_dim, batch_first=True, num_layers=num_lstm_layers)
 
         # Multi-head attention layer
         self.attention = MultiheadAttention(embed_dim=hidden_dim, num_heads=attention_heads)
 
-        # Register the hook in the constructor
-        self.register_backward_hook(self.save_gradients)
-
         # Fully connected layer
-        self.fc = nn.Linear(in_features=hidden_dim, out_features=output_size)
+        self.fc = nn.Linear(hidden_dim, output_size)
         
         # Metric collection
         metrics = MetricCollection({
@@ -59,11 +52,27 @@ class ConvLSTMCAMbiotic(pl.LightningModule):
         self.train_metrics = metrics.clone(prefix='train_')
         self.val_metrics = metrics.clone(prefix='val_')
         self.test_metrics = metrics.clone(prefix='test_')
+        
+        
+        # Register hooks
+        self.register_hooks()
 
-    def save_gradients(self, module, grad_input, grad_output):
-        """Save the gradients for the feature maps."""
-        if self.feature_maps.requires_grad:
-            self.gradients = grad_output[0]
+    def register_hooks(self):
+        last_conv_layer = self.convs[-1][0]  # Accessing the actual convolutional layer if it's wrapped inside nn.Sequential
+        last_conv_layer.register_forward_hook(self.get_activation_hook('last_conv'))
+        last_conv_layer.register_full_backward_hook(self.get_gradient_hook('last_conv'))
+
+    
+    def get_activation_hook(self, name):
+        def hook(model, input, output):
+            self.activations[name] = output.detach()
+        return hook
+    
+    def get_gradient_hook(self, name):
+        def hook(model, grad_input, grad_output):
+            self.gradients[name] = grad_output[0].detach()
+        return hook
+
 
     @staticmethod
     def save_hyperparameters_to_json(hparams, filepath):
@@ -74,51 +83,44 @@ class ConvLSTMCAMbiotic(pl.LightningModule):
             json.dump(hparams, f, indent=4)
 
 
-
+    @property
+    def last_conv_layer(self):
+        return self.convs[-1]
 
     def forward(self, x):
-        # Print the input shape
-        print(f"Input shape at the start of forward: {x.shape}")
-
-        # Permute the tensor to have the shape [batch_size, num_channels, seq_len]
-        x = x.permute(0, 2, 1)
-
-        # Print the shape after permutation
-        print(f"Input shape after permutation: {x.shape}")
-
-        # Apply convolutional layers
-        for i, conv in enumerate(self.convs):
-            x = conv(x)
-            # Check if it's the last convolutional layer
-            if i == len(self.convs) - 1:
-                # Set requires_grad to True for the output of the last conv layer
-                x.requires_grad_(True)
-                # Assign the output to self.feature_maps
-                self.feature_maps = x
-                #retains the gradient for self.feature_maps because they are a non-leaf tensor and are not retained by default
-                self.feature_maps.retain_grad() 
-                # Print the status of requires_grad for self.feature_maps
-                print(f"self.feature_maps.requires_grad: {self.feature_maps.requires_grad}")
-
-        
-
-        # Permute the tensor for LSTM input
-        x = self.feature_maps.permute(0, 2, 1)
-
-        # Apply LSTM layers
+        print(f"Initial input shape: {x.shape}")
+        x = x.permute(0, 2, 1)  # Adjusting input dimensions
+        print(f"Input shape after permute for conv layers: {x.shape}")
+    
+        for i, conv_layer in enumerate(self.convs):
+            x = conv_layer(x)
+            print(f"Shape after conv layer {i}: {x.shape}")
+    
+        # After the loop, x contains the output of the last conv layer
+        # Optionally set requires_grad to True for the last conv layer output for visualization
+        x.requires_grad_(True)
+        self.feature_maps = x
+        self.feature_maps.retain_grad()  # Ensure gradients are retained for feature_maps
+        #print(f"Feature maps shape (last conv layer output): {self.feature_maps.shape}")
+    
+        # Preparing for LSTM
+        x = x.permute(0, 2, 1)  # Adjust dimensions for LSTM input
+        print(f"Shape before LSTM: {x.shape}")
         x, _ = self.lstm(x)
-
-        # Take only the last output of the LSTM
-        x = x[:, -1, :]
-
-        # Apply attention layer
-        attention_output, attention_weights = self.attention(x, x, x)
-
-        # Fully connected layer
-        x = self.fc(attention_output.squeeze(1) if attention_output.dim() == 3 else attention_output)
-
-        # Return output, attention weights, and feature maps
+        #print(f"Shape after LSTM: {x.shape}")
+    
+        # Applying Multi-head attention
+        query = x.permute(1, 0, 2)
+        attention_output, attention_weights = self.attention(query, query, query)
+        attention_output = attention_output.permute(1, 0, 2)
+        print(f"Attention output shape: {attention_output.shape}")
+    
+        # Applying the fully connected layer
+        x = self.fc(attention_output[:, -1, :])
+        #print(f"Output shape after FC layer: {x.shape}")
+    
         return x, attention_weights, self.feature_maps
+
 
 
     def register_gradient_hook(self):
