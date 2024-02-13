@@ -4,6 +4,15 @@
 
 This repository contains the implementation of a deep learning model for binary classification of chemical compounds represented as SMILES (Simplified Molecular Input Line Entry System) strings. The model architecture combines convolutional neural networks (CNNs) and long short-term memory (LSTM) networks to identify  bioactive compounds for antimicrobial activity (Include the microbial specie the model was trained for). Additionally, it provides tools for interpreting the model's predictions, such as generating Class Activation Maps (CAMs) to highlight important structural motifs.
 
+
+## Modules Description
+
+- **Data Preprocessing (`Data_processing1.py` and `Data_processing2.py`)**: Scripts for cleaning SMILES data, including filtering, standardizing, and dataset partitioning.
+- **Data Loader (`data_loader.py`)**: Implements a PyTorch Lightning DataModule for efficient data handling and batching.
+- **Model (`model.py`)**: Defines the neural network architecture combining convolutional, LSTM layers, and multi-head attention, focusing on learning from the structural patterns in SMILES data.
+- **Training (`trainer.py`)**: Facilitates model training with checkpoints, hyperparameter configuration, and TensorBoard logging.
+- **Visualization (`visualization.ipynb`)**: Jupyter Notebook for visualizing activation maps on molecular structures, offering insights into the model's focal points.
+
 ## Installation
 To set up the project, follow these steps:
 
@@ -22,84 +31,40 @@ To set up the project, follow these steps:
 ## Usage
 To use the project, follow these steps:
 
-1. **Data Preprocessing**
-   Place your dataset in CSV format in the project directory and run:
-   ```bash
-   python main.py path/to/your-dataset.csv
-   ```
+### Data Preprocessing
 
-2. **Training the Model**
-   The model training is initiated by the `main.py` script. Customize training parameters using command-line arguments.
+1. **Initial Preprocessing**:
+   - Run `Data_processing1.py` to clean and standardize SMILES data.
+     ```sh
+     python Data_processing1.py <path_to_raw_smiles.csv>
+     ```
 
-3. **Visualization**
-   To visualize the activation maps on SMILES strings:
-   ```bash
-   python visualization.py
-   ```
+2. **Further Data Preparation**:
+   - Execute `Data_processing2.py` for additional preprocessing, including filtering based on structural features and dataset splitting.
+     ```sh
+     python Data_processing2.py <path_to_standardized_smiles.csv>
+     ```
 
-## Project Structure
-- `data_preprocessing.py`: Module for preprocessing SMILES data.
-- `data_loader.py`: PyTorch data loading utility.
-- `model.py`: Definition of the CNN + LSTM model.
-- `visualization.py`: Visualization tools for activation maps.
-- `main.py`: Entry point for training and evaluating the model.
+### Model Training
 
-## Modules Overview
+- Train the model using `trainer.py`, specifying the path to the preprocessed dataset and desired hyperparameters.
+  ```sh
+  python trainer.py --data_path <path_to_preprocessed_data.csv> --epochs 100 --batch_size 64
+  ```
 
-### 1. Data Preprocessing (`data_preprocessing.py`)
+### Visualization of Activation Maps
 
-This script is responsible for preparing the raw SMILES dataset for the machine learning pipeline. Key functionalities include:
+- To visualize the model's focus through activation maps on molecular structures, run the `visualization.ipynb` notebook in Jupyter:
+  ```sh
+  jupyter notebook visualization.ipynb
+  ```
+- Follow the instructions within the notebook to load a trained model checkpoint and visualize activation maps on specified SMILES strings.
 
-- **SMILES Augmentation**: Generates multiple augmented versions of each SMILES string to enrich the dataset.
-- **SMILES Encoding**: Converts SMILES strings into integer sequences based on a character-to-index mapping.
-- **Data Splitting**: Splits the dataset into training, validation, and test sets.
-- **File Generation**: Outputs processed data files and a JSON file for the character-to-index mapping.
 
-Run this script separately on a CPU for efficient processing.
 
-#### Usage
+## Contributing
 
-```bash
-python data_preprocessing.py <path_to_dataset.csv> --augment --num_augmentations 10
-```
-
-### 2. Model Training and Evaluation (`main.py`)
-
-This is the central script for training and evaluating the neural network model. It handles:
-
-- **Model Initialization**: Sets up the SMILESClassifier with specified hyperparameters.
-- **Data Loading**: Uses the preprocessed data for training and validation.
-- **Training Process**: Orchestrates the training and evaluation cycles using PyTorch Lightning.
-
-This script is designed for GPU execution to leverage accelerated computing resources.
-
-#### Usage
-
-```bash
-python main.py --data_path <preprocessed_data_path> --epochs 10 --batch_size 64
-```
-
-### 3. Visualization (`visualization.py`)
-
-After training, this script visualizes the activations of SMILES strings in the neural network. Key features include:
-
-- **Activation Mapping**: Uses Grad-CAM to highlight which parts of the SMILES strings are most influential in the model's predictions.
-- **Molecular Visualization**: Renders the SMILES strings as 2D molecular structures with overlaid activations.
-
-Run this script separately, as visualization can be resource-intensive.
-
-#### Usage
-
-```bash
-python visualization.py
-```
-
-## Recommendations
-
-- Execute `data_preprocessing.py` first to prepare your dataset for training.
-- Follow with `main.py` for model training and evaluation.
-- Use `visualization.py` to generate insightful visualizations of the model's predictions.
-- Ensure that each script's dependencies and environment settings are correctly configured before execution.
+Contributions are welcome. Please adhere to the project's coding conventions and commit guidelines. Open a pull request with detailed descriptions of your changes or enhancements.
 
 ---
 
