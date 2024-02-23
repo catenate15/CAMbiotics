@@ -54,7 +54,7 @@ To use the project, follow these steps:
 
 ### Visualization of Activation Maps
 
-- To visualize the model's focus through activation maps on molecular structures, run the `visualization.ipynb` notebook in Jupyter:
+- To visualize the model's focus through activation maps on molecular structures, run the `VISUALIZATION_METHODS.ipynb` notebook in Jupyter:
   ```sh
   jupyter notebook visualization.ipynb
   ```
