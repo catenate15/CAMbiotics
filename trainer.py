@@ -25,7 +25,7 @@ logging.basicConfig(format="[%(name)-30s] %(message)s ", handlers=[logging.Strea
 vocab_size = len(smiles_chars)
 print(f"Vocab_size is {(vocab_size)}")
 
-def set_seed(seed=42):
+def set_seed(seed=500):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -40,15 +40,15 @@ def train_model(args, vocab_size, attention_heads):
 
     # Initialize model with attention mechanism hyperparameters
     model = ConvLSTMCAMbiotic(
-        base_filename=base_file_name, 
-        num_cnn_layers=args.cnn_layers, 
-        num_lstm_layers=args.lstm_layers, 
-        hidden_dim=args.lstm_units, 
-        output_size=args.output_size, 
+        num_cnn_layers=args.cnn_layers,
+        num_lstm_layers=args.lstm_layers,
+        hidden_dim=args.lstm_units,
         learning_rate=args.learning_rate,
         vocab_size=vocab_size,
-        attention_heads=attention_heads  # new attention parameter
+        attention_heads=attention_heads,
+        output_size=3  # Ensure this matches the number of classes
     )
+
 
 
 
@@ -66,7 +66,7 @@ def train_model(args, vocab_size, attention_heads):
 
     # Checkpoint callbacks
     checkpoint_callback = ModelCheckpoint(
-        dirpath='models3/',
+        dirpath='models500/',
         filename='checkpoint-{epoch:02d}-{val_loss:.2f}',
         save_top_k=3,  # Saves best 3 models based on validation loss
         mode='min',
@@ -75,7 +75,7 @@ def train_model(args, vocab_size, attention_heads):
 
     # Now use these in your trainer
     first_three_checkpoint = FirstThreeCheckpoint(
-        dirpath='models3/first_three',
+        dirpath='models500/first_three',
         filename='epoch={epoch:02d}',
         save_top_k=3,
         mode='min',
@@ -83,7 +83,7 @@ def train_model(args, vocab_size, attention_heads):
     )
 
     last_three_checkpoint = LastThreeCheckpoint(
-        dirpath='models3/last_three',
+        dirpath='models500/last_three',
         filename='epoch={epoch:02d}',
         save_last=True,
         mode='min',
@@ -96,7 +96,7 @@ def train_model(args, vocab_size, attention_heads):
     # Trainer setup
     trainer = pl.Trainer(
         max_epochs=args.epochs,
-        logger=TensorBoardLogger("tb_logs3", name="my_model"),
+        logger=TensorBoardLogger("tb_logs500", name="my_model"),
         callbacks=[checkpoint_callback, first_three_checkpoint, last_three_checkpoint]
     )
 
@@ -106,7 +106,7 @@ def train_model(args, vocab_size, attention_heads):
 
 def main(file_path):
     # Set the seed for reproducibility
-    set_seed(42) # change this to any integer to test robustness of model
+    set_seed(500) # change this to any integer to test robustness of model
     startTime = datetime.datetime.now()
     startmem = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
     logger.info("Script started.")
