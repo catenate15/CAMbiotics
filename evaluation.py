@@ -1,31 +1,20 @@
 # to run the code python evaluation.py path/to/evaluation_dataset.csv path/to/model_checkpoint.ckpt 
 
 import argparse
+import numpy as np
 import pandas as pd
 import torch
 import os
-import json
-import numpy as np
-from model import ConvLSTMCAMbiotic
-from data_preprocessing1 import standardize_smiles_column
-from data_preprocessing2 import  load_data, validate_columns,  smile_to_sequence, smiles_to_sequences, filter_smiles, pad_one_hot_sequences
 import logging
+from model import ConvLSTMCAMbiotic
+from data_preprocessing1 import process_smiles, load_data, smiles_chars
+from data_preprocessing2 import smiles_to_sequences, pad_one_hot_sequences
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
-# Smile characters used in the model defined
-smiles_chars = [' ',
-                '#', '%', '(', ')', '+', '-', '.', '/',
-                '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-                '=', '@',
-                'A', 'B', 'C', 'F', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P',
-                'R', 'S', 'T', 'V', 'X', 'Z',
-                '[', '\\', ']',
-                'a', 'b', 'c', 'e', 'g', 'i', 'l', 'n', 'o', 'p', 'r', 's',
-                't', 'u']
 
 maxlen = 350 # max length of which model was trained on
 
@@ -47,35 +36,45 @@ def validate_smiles(smiles, maxlen, smiles_chars):
 
 
 
-def preprocess_and_filter_data(file_path, smiles_column='SMILES', target_column='TARGET'):
-    """Filter out data that does not meet the criteria and process the data for evaluation."""
+
+def preprocess_and_filter_data(file_path, target_column='TARGET'):
     # Load data
-    data = load_data(file_path, [smiles_column, target_column])
+    data = pd.read_csv(file_path)
+    
+    # Check for PROCESSED_SMILES column and choose the appropriate SMILES column
+    if 'PROCESSED_SMILES' in data.columns:
+        smiles_column = 'PROCESSED_SMILES'
+        logger.info("Using pre-standardized SMILES from 'PROCESSED_SMILES' column.")
+        # Skip standardization as the SMILES are already processed
+        valid_data = data
+    else:
+        smiles_column = 'SMILES'
+        logger.info("Standardizing SMILES from 'SMILES' column.")
+        data = process_smiles(data, smiles_column)
+        valid_data = data.copy()
 
-    # Standardize the SMILES strings
-    data = standardize_smiles_column(data, smiles_column)
-    standardized_smiles_column = 'STANDARDIZED_SMILES'
 
-    # Filter out SMILES strings based on criteria
+    # Validate and filter SMILES strings based on criteria
     filtered_out_data = []
     valid_data = data.copy()
     for index, row in valid_data.iterrows():
-        reasons = validate_smiles(row[standardized_smiles_column], maxlen, smiles_chars)
+        reasons = validate_smiles(row[smiles_column], maxlen, smiles_chars)
         if reasons:
-            filtered_out_data.append((row[standardized_smiles_column], ', '.join(reasons)))
+            filtered_out_data.append((row[smiles_column], ', '.join(reasons)))
             valid_data.drop(index, inplace=True)
 
     if filtered_out_data:
-        pd.DataFrame(filtered_out_data, columns=[standardized_smiles_column, 'Reason']).to_csv('Invalid_smiles_not_evaluated.csv', index=False)
-        print("Filtered SMILES saved to 'Invalid_smiles_not_evaluated.csv'.")
+        pd.DataFrame(filtered_out_data, columns=[smiles_column, 'Reason']).to_csv('Invalid_smiles_not_evaluated.csv', index=False)
+        logger.info("Filtered SMILES saved to 'Invalid_smiles_not_evaluated.csv'.")
 
     if valid_data.empty:
         raise ValueError("No valid SMILES strings found in the dataset.")
 
     # Process dataset for evaluation
-    processed_data, labels = process_dataset_for_evaluation(valid_data, standardized_smiles_column, target_column, maxlen, smiles_chars)
+    processed_data, labels = process_dataset_for_evaluation(valid_data, smiles_column, target_column, maxlen, smiles_chars)
 
     return processed_data, labels
+
 
 
 def process_dataset_for_evaluation(data, smiles_column, target_column, maxlen, smiles_chars):
@@ -101,59 +100,90 @@ def process_dataset_for_evaluation(data, smiles_column, target_column, maxlen, s
 
 
 def evaluate(model, processed_data, labels):
-    """Evaluate the model on the processed data."""
     with torch.no_grad():
         inputs = torch.tensor(processed_data).float().to(model.device)
-        outputs_tuple = model(inputs)
-        # Assuming the primary output (logits) is the first element of the tuple
-        primary_output = outputs_tuple[0]
-        probabilities = torch.sigmoid(primary_output).cpu().numpy()
-        predictions = (probabilities >= 0.5).astype(int)
-        return zip(labels, probabilities, predictions)
+        outputs_tuple = model(inputs)  # This returns a tuple
+        logits = outputs_tuple[0]  # Extract the logits which are the first item of the tuple
+        probabilities = torch.softmax(logits, dim=1).cpu().numpy()  # Softmax on logits
+        predictions = np.argmax(probabilities, axis=1)  # Predicted class
+        return probabilities, predictions
+
+    
+
+# Define the mapping from numerical targets to categorical labels
+target_map = {0: 'inactive', 1: 'slightly active', 2: 'active'}
+
+# Define the agreement categorization function
+def categorize_agreement(original, prediction):
+    if original == prediction:
+        return 'AGREE'
+    elif original == 'active' and prediction == 'slightly active':
+        return 'PARTIALLY_AGREE_DOWNGRADED'
+    elif original == 'slightly active' and prediction == 'active':
+        return 'PARTIALLY_AGREE_UPGRADED'
+    else:
+        return 'DISAGREE'
+
+def generate_agreement_status_summary(merged_df):
+    agreement_status_summary = merged_df['Agreement_Status'].value_counts()
+    summary_lines = []
+    for category, count in agreement_status_summary.items():
+        if category != 'NO_TARGET':
+            summary_lines.append(f"{category}: {count}")
+    if 'NO_TARGET' in agreement_status_summary.index:
+        no_target_count = agreement_status_summary['NO_TARGET']
+        summary_lines.append(f"NO_TARGET: {no_target_count}")
+    return "\n".join(summary_lines)
+
 
 
 def main(dataset_path, checkpoint_path):
     logger.info(f"Dataset Path: {dataset_path}")
     logger.info(f"Checkpoint Path: {checkpoint_path}")
-    logger.info(f"Current Working Directory: {os.getcwd()}")
 
-    # Check file existence
-    if not os.path.exists(dataset_path):
-        logger.error(f"Dataset file not found at {dataset_path}")
-        return
-    if not os.path.exists(checkpoint_path):
-        logger.error(f"Checkpoint file not found at {checkpoint_path}")
+    if not os.path.exists(dataset_path) or not os.path.exists(checkpoint_path):
+        logger.error("File not found.")
         return
 
-    # Load model and data
-    model = load_model(checkpoint_path)
-    processed_data, labels = preprocess_and_filter_data(dataset_path, 'SMILES', 'TARGET')
-    evaluation_results = evaluate(model, processed_data, labels)
-
-    results_df = pd.DataFrame(evaluation_results, columns=['TARGET', 'Predicted_Probability', 'Final_Prediction'])
     test_df = pd.read_csv(dataset_path)
-    results_df = pd.concat([test_df[['COMPOUND_ID', 'SMILES']], results_df], axis=1)
 
-    # Check the DataFrame before saving
-    logger.info(f"Results DataFrame:\n{results_df.head()}")
+    model = load_model(checkpoint_path)
+    processed_data, labels = preprocess_and_filter_data(dataset_path, 'TARGET')
+    
+    probabilities, predictions = evaluate(model, processed_data, labels)
+    logger.info(f"Shape of probabilities array: {probabilities.shape}")
 
-    # Convert 'Final_Prediction' from list to integer
-    results_df['Final_Prediction'] = results_df['Final_Prediction'].apply(lambda x: x[0])
+    results_df = pd.DataFrame({
+        'Prob_Inactive': probabilities[:, 0],
+        'Prob_Slightly_Active': probabilities[:, 1],
+        'Prob_Active': probabilities[:, 2],
+    }, index=test_df.index)
+    
+    results_df['Final_Prediction'] = predictions
+    results_df['Final_Prediction_Status'] = [target_map[pred] for pred in predictions]
 
-    # Add 'AGREE' column
-    results_df['CONFIRMATION'] = results_df.apply(lambda row: 'AGREE' if row['TARGET'] == row['Final_Prediction'] else 'DISAGREE', axis=1)
+    merged_df = test_df.join(results_df)
 
-    # Save the results
-    results_file_path = 'evaluation_results.csv'
-    results_df.to_csv(results_file_path, index=False)
+    if 'TARGET' in merged_df.columns:
+        merged_df['Original_Target_Status'] = merged_df['TARGET'].map(target_map)
+        merged_df['Agreement_Status'] = merged_df.apply(
+            lambda row: categorize_agreement(row['Original_Target_Status'], row['Final_Prediction_Status']), axis=1
+        )
+    else:
+        merged_df['Agreement_Status'] = 'NO_TARGET'
+
+    agreement_status_summary = generate_agreement_status_summary(merged_df)
+    logger.info("Agreement Status Summary:\n%s", agreement_status_summary)
+
+    results_file_path = 'evaluation_results.csv' # Save the results to a CSV file
+    merged_df.to_csv(results_file_path, index=False)
     logger.info(f"Evaluation completed. Results saved to '{results_file_path}'.")
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluate a new dataset using the trained model.')
     parser.add_argument('dataset_path', type=str, help='The file path to the new dataset CSV file.')
     parser.add_argument('checkpoint_path', type=str, help='Path to the trained model checkpoint.')
     args = parser.parse_args()
-
-    # No longer need to pass smiles_chars_file and maxlen_file
     main(args.dataset_path, args.checkpoint_path)
+
+
