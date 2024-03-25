@@ -6,25 +6,17 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 import os
 import logging
-import matplotlib.pyplot as plt
 import numpy as np
 from itertools import permutations
 import random
+from rdkit.Chem import Descriptors
+import sys
+from data_preprocessing1 import smiles_chars
 
 logger = logging.getLogger(__name__)
 # Set up basic configuration for logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# define SMILES characters ----------------------------------------------------
-smiles_chars = [' ',
-                '#', '%', '(', ')', '+', '-', '.', '/',
-                '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-                '=', '@',
-                'A', 'B', 'C', 'F', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P',
-                'R', 'S', 'T', 'V', 'X', 'Z',
-                '[', '\\', ']',
-                'a', 'b', 'c', 'e', 'g', 'i', 'l', 'n', 'o', 'p', 'r', 's',
-                't', 'u']
 print(f"The length of smiles character is {len(smiles_chars)}")
 
 def setup_logger(base_file_name):
@@ -49,6 +41,15 @@ def setup_logger(base_file_name):
 
     return logger
 
+
+def calculate_molecular_weight(smiles):
+    """ Calculate the molecular weight of a molecule given its SMILES string. """
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is not None:
+        return Descriptors.ExactMolWt(mol)
+    else:
+        return None
+    
 def validate_columns(data, required_columns):
     """ Validate that the data contains all required columns """
     missing_cols = set(required_columns) - set(data.columns)
@@ -65,31 +66,30 @@ def load_data(file_path, required_columns):
     return data
 
 
-def filter_smiles(data, smiles_column, maxlen, smiles_chars, base_file_path, target_column = 'TARGET'):
+def filter_smiles(data, smiles_column, maxlen, smiles_chars, base_file_path, target_column='TARGET', max_mol_wt=650):
     """
-    Filter out SMILES strings that are too long or contain invalid characters, 
-    and save the filtered-out SMILES with reasons. Additionally, report the percentage
-    of actives and inactives filtered out.
+    ...
     Args:
-        data (DataFrame): The dataset containing SMILES strings.
-        smiles_column (str): The column name for SMILES strings.
-        maxlen (int): The maximum length of SMILES strings.
-        smiles_chars (set): Set of valid characters in SMILES strings.
-        base_file_path (str): Base file name to save the filtered-out SMILES.
-        target_column (str): The column name for the target variable.
-    Returns:
-        DataFrame: The filtered dataset.
+        ...
+        max_mol_wt (float): The maximum molecular weight allowed for a molecule.
+        ...
     """
-    def filter_reason(smiles):
+    # Calculate molecular weights
+    data['MOL_WT'] = data[smiles_column].apply(calculate_molecular_weight)
+
+    # Add reason for filtering if molecular weight exceeds max_mol_wt
+    def filter_reason(smiles, mol_wt):
         reason = []
         if len(smiles) > maxlen:
             reason.append('maxlen exceeded')
         if not all(char in smiles_chars for char in smiles):
             reason.append('invalid character')
+        if mol_wt is None or mol_wt > max_mol_wt:
+            reason.append('mol wt exceeded')
         return ', '.join(reason) or 'valid'
-
-    # Apply the filter_reason function to each SMILES string
-    data['REASON'] = data[smiles_column].apply(filter_reason)
+    
+    # Apply the filter_reason function to each SMILES string along with its molecular weight
+    data['REASON'] = data.apply(lambda x: filter_reason(x[smiles_column], x['MOL_WT']), axis=1)
 
     # Split the data into filtered and filtered-out based on the reason
     filtered_data = data[data['REASON'] == 'valid']
@@ -100,16 +100,22 @@ def filter_smiles(data, smiles_column, maxlen, smiles_chars, base_file_path, tar
     total_count = len(data)
     overall_filtered_out_percent = (total_filtered_out_count / total_count) * 100
 
-    actives_filtered_out_count = filtered_out_data[filtered_out_data[target_column] == 1].shape[0]
-    inactives_filtered_out_count = filtered_out_data[filtered_out_data[target_column] == 0].shape[0]
+    # Adjustments to include slightly active compounds
+    actives_filtered_out_count = filtered_out_data[filtered_out_data[target_column] == 2].shape[0]  # Assuming '2' is active
+    slightly_actives_filtered_out_count = filtered_out_data[filtered_out_data[target_column] == 1].shape[0]  # Assuming '1' is slightly active
+    inactives_filtered_out_count = filtered_out_data[filtered_out_data[target_column] == 0].shape[0]  # Assuming '0' is inactive
+
     actives_percent = (actives_filtered_out_count / total_count) * 100
+    slightly_actives_percent = (slightly_actives_filtered_out_count / total_count) * 100
     inactives_percent = (inactives_filtered_out_count / total_count) * 100
 
-    # Log the details
+    # Log the details including slightly active compounds
     logger.info(f"Filtered out {total_filtered_out_count} SMILES ({overall_filtered_out_percent:.2f}%) not conforming to the predefined embedding.")
     logger.info(f"  - Actives filtered out: {actives_filtered_out_count} ({actives_percent:.2f}%)")
+    logger.info(f"  - Slightly Actives filtered out: {slightly_actives_filtered_out_count} ({slightly_actives_percent:.2f}%)")  # Added line
     logger.info(f"  - Inactives filtered out: {inactives_filtered_out_count} ({inactives_percent:.2f}%)")
     logger.info(f"Details saved in {base_file_path}_filtered_out.csv")
+
 
     # Save the filtered-out data
     filtered_out_csv = f"{base_file_path}_filtered_out.csv"
@@ -236,7 +242,7 @@ def log_class_proportions(y, dataset_name):
     class_proportions = class_counts / total_count
     logger.info(f"{dataset_name} set class proportions:")
     for value, count in class_counts.items():
-        logger.info(f"  Class {value}: {count} counts, {class_proportions[value] * 100:.2f}%")
+        logger.info(f"  Class {value} (0: inactive, 1: slightly active, 2: active): {count} counts, {class_proportions[value] * 100:.2f}%")
 
 
 
@@ -259,7 +265,7 @@ def process_dataset(data, smiles_column, target_column, maxlen):
     """
     Process the dataset to convert SMILES to one-hot encoding and pad them.
     """
-    # Directly use smiles_chars for char_to_index mapping
+    # Mapping characters to integers
     char_to_index = {c: i for i, c in enumerate(smiles_chars)}
 
     # Convert SMILES to one-hot encoding
@@ -270,31 +276,44 @@ def process_dataset(data, smiles_column, target_column, maxlen):
 
     # Extract labels
     labels = data[target_column].values
-
-    return padded_smiles, labels, data
+    
+    # Select only the necessary columns for the output
+    data_subset = data[['COMPOUND_ID', smiles_column, target_column]]
+    
+    return padded_smiles, labels, data_subset
 
 
 
 def split_and_save_data(train_data, valid_data, test_data, smiles_column, target_column, base_file_path, maxlen):
     try:
+        # Remove the '.csv' extension from the base_file_path if present
+        if base_file_path.endswith('.csv'):
+            base_file_path = base_file_path[:-4]  # Remove the last 4 characters, '.csv'
+
+        # Now, base_file_path doesn't include '.csv', and you can append new suffixes without issue
+        columns_to_save = ['COMPOUND_ID', smiles_column, target_column]
+
         # Process and save training data
-        train_features, train_labels, _ = process_dataset(train_data, smiles_column, target_column, maxlen)
+        train_features, train_labels, train_data_subset = process_dataset(train_data, smiles_column, target_column, maxlen)
+        train_data_subset = train_data_subset[columns_to_save]
         np.save(f'{base_file_path}_train_features.npy', train_features)
-        train_data[['COMPOUND_ID', 'SMILES', target_column]].to_csv(f'{base_file_path}_train_labels.csv', index=False)
+        train_data_subset.to_csv(f'{base_file_path}_train_labels.csv', index=False)
 
-        # Process and save validation data
-        valid_features, valid_labels, _ = process_dataset(valid_data, smiles_column, target_column, maxlen)
+        # Repeat for validation and test data
+        valid_features, valid_labels, valid_data_subset = process_dataset(valid_data, smiles_column, target_column, maxlen)
+        valid_data_subset = valid_data_subset[columns_to_save]
         np.save(f'{base_file_path}_valid_features.npy', valid_features)
-        valid_data[['COMPOUND_ID', 'SMILES', target_column]].to_csv(f'{base_file_path}_valid_labels.csv', index=False)
+        valid_data_subset.to_csv(f'{base_file_path}_valid_labels.csv', index=False)
 
-        # Process and save test data
-        test_features, test_labels, _ = process_dataset(test_data, smiles_column, target_column, maxlen)
+        test_features, test_labels, test_data_subset = process_dataset(test_data, smiles_column, target_column, maxlen)
+        test_data_subset = test_data_subset[columns_to_save]
         np.save(f'{base_file_path}_test_features.npy', test_features)
-        test_data[['COMPOUND_ID', 'SMILES', target_column]].to_csv(f'{base_file_path}_test_labels.csv', index=False)
+        test_data_subset.to_csv(f'{base_file_path}_test_labels.csv', index=False)
 
         logger.info("Data successfully processed and saved for training, validation, and test sets.")
     except Exception as e:
         logger.error(f"An error occurred while saving the files: {e}")
+        return None  # Return None explicitly on error
 
     return {
         'train_features': f'{base_file_path}_train_features.npy',
@@ -307,112 +326,49 @@ def split_and_save_data(train_data, valid_data, test_data, smiles_column, target
 
 
 
-
 def preprocess_data(csv_file, smiles_column='SMILES', target_column='TARGET', augment=False, num_augmentations=10):
-    # Extracting base file name
-    base_file_name = os.path.basename(csv_file).rsplit('.', 1)[0]
+    standardized_file_path = csv_file
 
-    # Check if 'STANDARDIZED_' prefix is already included
-    if not base_file_name.startswith("STANDARDIZED_"):
-        base_file_name = f"STANDARDIZED_{base_file_name}"
+    # Load and validate data
+    data = load_data(standardized_file_path, [smiles_column, target_column])
 
-    standardized_file_path = base_file_name
-
-
-    # Check if processed files already exist
-    processed_files_exist = all(
-        os.path.exists(f"{standardized_file_path}_{suffix}.npy") or os.path.exists(f"{standardized_file_path}_{suffix}.csv")
-        for suffix in ['train_features', 'valid_features', 'test_features', 'train_labels', 'valid_labels', 'test_labels']
-    )
-    if processed_files_exist:
-        logger.info("Processed .npy and .csv files already exist. Skipping preprocessing.")
-        return {suffix: f"{standardized_file_path}_{suffix}" for suffix in ['train_features', 'valid_features', 'test_features', 'train_labels', 'valid_labels', 'test_labels']}
-
-    # Load and process data
-    data = load_data(f"{standardized_file_path}.csv", [smiles_column, target_column])
     logger.info("Initial class proportions:")
     log_class_proportions(data[target_column], "Initial")
 
-    # Define maxlen directly
-    maxlen = 350  # this value is selected from what you chose from the histogram generated from data_preprocessing1.py
-
-    # Filter out SMILES strings based on maxlen and smiles_chars
-    filtered_data = filter_smiles(data, smiles_column, maxlen, smiles_chars, standardized_file_path)
-
-    # Log details
-    logger.info(f"Model will be trained on maxlen = {maxlen}. SMILES exceeding this length will not be used.")
-    logger.info(f"Embedding used in model: {smiles_chars}")
-
-    # Directly use smiles_chars for char_to_index mapping
-    char_to_index = {c: i for i, c in enumerate(smiles_chars)}
-
-    # Convert SMILES to one-hot encoding
-    one_hot_encoded = smiles_to_sequences(data[smiles_column].tolist(), char_to_index, maxlen)
-
-    # Pad the one-hot encoded sequences
-    padded_smiles = pad_one_hot_sequences(one_hot_encoded, maxlen)
-
-    # Log details for random samples
-    random_smiles = random.sample(data[smiles_column].tolist(), 5)
-    for smile in random_smiles:
-        logger.info(f"Random SMILE: {smile}, Length after padding: {len(padded_smiles[data[smiles_column].tolist().index(smile)])}")
-
-    # Extract labels
-    labels = data[target_column].values
-
-    # Split the filtered data into train, validation, and test sets
+    # Define and filter SMILES strings
+    maxlen = 350
+    filtered_data = filter_smiles(data, smiles_column, maxlen, smiles_chars, standardized_file_path, target_column, max_mol_wt=650)
+    
+    # Process and split data
     train_data, valid_data, test_data = preprocess_and_split_data(filtered_data, smiles_column, target_column)
 
-    # Augment only the training data
+    #  augment trainng data only
     if augment:
         train_data = augment_data(train_data, num_augmentations, smiles_column, target_column)
-        logger.info(f"Training Data augmented to {len(train_data)} records")
 
-
-    # Process and save each dataset
-    print("Processing and saving split datasets...")
+    # Save processed datasets
     processed_paths = split_and_save_data(train_data, valid_data, test_data, smiles_column, target_column, standardized_file_path, maxlen)
 
     return processed_paths
 
 
 def main(csv_file):
-    """
-    Main function to run the preprocessing steps on the provided CSV file.
-    Args:
-        csv_file (str): Path to the CSV file containing the dataset.
-    """
-    base_file_name = os.path.splitext(os.path.basename(csv_file))[0]
-    logger = setup_logger(base_file_name)
+    logger = setup_logger(os.path.splitext(os.path.basename(csv_file))[0])
     logger.info("Starting data preprocessing...")
 
+    standardized_file = csv_file  # Direct use without altering the filename
+
     try:
-        # Constructing standardized dataset filename
-        if base_file_name.startswith("STANDARDIZED_"):
-            standardized_file = csv_file
-        else:
-            standardized_file = f"{base_file_name}.csv"
-
-        # Check if the standardized dataset exists
-        if not os.path.exists(standardized_file):
-            logger.error(f"Standardized dataset file not found: {standardized_file}")
-            sys.exit(1)
-
-        # Run the preprocessing function with the path to the standardized CSV file
-        processed_paths = preprocess_data(standardized_file, augment=True, num_augmentations=10)  # Set to False for no augmentation
-        print(f"Data preprocessing completed. Files saved at: {processed_paths}")
+        # Load and preprocess data
+        processed_paths = preprocess_data(standardized_file, 'PROCESSED_SMILES', 'TARGET', augment=True, num_augmentations=10)
+        logger.info(f"Data preprocessing completed. Files saved at: {processed_paths}")
     except Exception as e:
         logger.error(f"An error occurred during data preprocessing: {e}")
         sys.exit(1)
 
 if __name__ == '__main__':
-    import sys
-
-    # Check if the script is run with the correct number of arguments
     if len(sys.argv) != 2:
         print("Usage: python data_preprocessing2.py <path_to_dataset.csv>")
         sys.exit(1)
-
-    # Call the main function with the CSV file path
     main(sys.argv[1])
 
