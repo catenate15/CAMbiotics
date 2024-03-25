@@ -54,10 +54,13 @@ To use the project, follow these steps:
 
 ### Visualization of Activation Maps
 
-- To visualize the model's focus through activation maps on molecular structures, run the `VISUALIZATION_METHODS.ipynb` notebook in Jupyter:
+- To visualize the model's focus through activation maps on molecular structures, run the `Grad_CAM MAP.ipynb` and `Attention_MAP.ipynb` notebook in Jupyter:
   ```sh
-  jupyter notebook visualization.ipynb
+  jupyter notebook Grad_CAM MAP.ipynb
   ```
+   ```sh
+  jupyter notebook Attention_MAP.ipynb
+    ```
 - Follow the instructions within the notebook to load a trained model checkpoint and visualize activation maps on specified SMILES strings.
 
 
