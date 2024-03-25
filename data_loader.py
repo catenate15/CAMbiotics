@@ -1,4 +1,4 @@
-
+# data_loader.py
 import os
 import torch
 import numpy as np
@@ -13,53 +13,47 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class SMILESDataset(Dataset):
-    """
-    Custom Dataset for loading one-hot encoded SMILES from a .npy file with corresponding labels.
-    """
     def __init__(self, features_file, labels_file):
-        """__init__ method to load features and labels"""
-        logger.info(f"Loading features from {features_file} ")
+        logger.info(f"Loading features from {features_file}")
         self.features = np.load(features_file)
-        logger.info(f"Loading labels from {labels_file} ") 
+        logger.info(f"Loading labels from {labels_file}")
         self.labels = pd.read_csv(labels_file)['TARGET'].values
         logger.info(f"Dataset Loaded successfully with {len(self.features)} SMILES strings with {len(self.labels)} labels.")
 
     def __len__(self):
-        """len' method to return the number of SMILES strings in the dataset"""
         return len(self.features)
 
     def __getitem__(self, idx):
-        """getitem' method to return a single SMILES string and its corresponding label"""
         features = torch.from_numpy(self.features[idx]).float()
-        label = torch.tensor(self.labels[idx], dtype=torch.float)
+        label = torch.tensor(self.labels[idx], dtype=torch.long)  # Keep dtype=torch.long for classification
         return features, label
 
 
+
+
 class SMILESDataModule(pl.LightningDataModule):
-    """
-    PyTorch Lightning DataModule for SMILES datasets. Contains methods: setup, train_dataloader, val_dataloader, test_dataloader.
-    """
     def __init__(self, base_file_path, base_file_name, batch_size=32):
         super().__init__()
         self.base_file_path = base_file_path
+        # No need to prefix with 'standardized_' as files are directly named in data_preprocessing2.py
         self.base_file_name = base_file_name
         self.batch_size = batch_size
 
     def setup(self, stage=None):
         # Load the datasets
-        standardized_prefix = 'STANDARDIZED_'
         self.train_dataset = SMILESDataset(
-            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_train_features.npy'),
-            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_train_labels.csv')
+            os.path.join(self.base_file_path, f'{self.base_file_name}_train_features.npy'),
+            os.path.join(self.base_file_path, f'{self.base_file_name}_train_labels.csv')
         )
         self.val_dataset = SMILESDataset(
-            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_valid_features.npy'),
-            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_valid_labels.csv')
+            os.path.join(self.base_file_path, f'{self.base_file_name}_valid_features.npy'),
+            os.path.join(self.base_file_path, f'{self.base_file_name}_valid_labels.csv')
         )
         self.test_dataset = SMILESDataset(
-            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_test_features.npy'),
-            os.path.join(self.base_file_path, f'{standardized_prefix}{self.base_file_name}_test_labels.csv')
+            os.path.join(self.base_file_path, f'{self.base_file_name}_test_features.npy'),
+            os.path.join(self.base_file_path, f'{self.base_file_name}_test_labels.csv')
         )
+
 
 
     def train_dataloader(self):
