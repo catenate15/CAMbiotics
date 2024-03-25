@@ -1,18 +1,16 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import pytorch_lightning as pl
 from torchmetrics import MetricCollection
-from torchmetrics.classification import BinaryAccuracy, BinaryF1Score, BinaryCohenKappa, BinaryMatthewsCorrCoef, BinarySpecificity, BinaryAUROC
-import json
-from data_preprocessing2 import smiles_chars
+from data_preprocessing1 import smiles_chars
 from torch.nn import MultiheadAttention
+from torchmetrics.classification import Accuracy, F1Score, MatthewsCorrCoef
 
 class ConvLSTMCAMbiotic(pl.LightningModule):
-    def __init__(self, base_filename, num_cnn_layers, num_lstm_layers, hidden_dim, output_size, learning_rate, vocab_size, attention_heads):
+    def __init__(self, num_cnn_layers, num_lstm_layers, hidden_dim, learning_rate, vocab_size, attention_heads, output_size):
         super().__init__()
         self.save_hyperparameters()
-        self.vocab_size = vocab_size  # Store vocab_size from arguments
+        self.vocab_size = vocab_size   
         
         
         # Initialize dictionaries for activations and gradients
@@ -40,14 +38,11 @@ class ConvLSTMCAMbiotic(pl.LightningModule):
         # Fully connected layer
         self.fc = nn.Linear(hidden_dim, output_size)
         
-        # Metric collection
+        # Metric collection updated without mdmc_average
         metrics = MetricCollection({
-            'accuracy': BinaryAccuracy(),
-            'f1_score': BinaryF1Score(),
-            'cohen_kappa': BinaryCohenKappa(),
-            'mcc': BinaryMatthewsCorrCoef(),
-            'specificity': BinarySpecificity(),
-            'auroc':  BinaryAUROC()
+            'accuracy': Accuracy(num_classes=3, average='macro', task='multiclass'),  # Now correctly set for multiclass
+            'f1_score': F1Score(num_classes=3, average='macro', task='multiclass'),  # Adjusted for 3 classes
+            'mcc': MatthewsCorrCoef(num_classes=3, task='multiclass')  # Adjusted for 3 classes, mdmc_average removed
         })
         self.train_metrics = metrics.clone(prefix='train_')
         self.val_metrics = metrics.clone(prefix='val_')
@@ -101,25 +96,29 @@ class ConvLSTMCAMbiotic(pl.LightningModule):
         x.requires_grad_(True)
         self.feature_maps = x
         self.feature_maps.retain_grad()  # Ensure gradients are retained for feature_maps
-        #print(f"Feature maps shape (last conv layer output): {self.feature_maps.shape}")
+        print(f"Feature maps shape (last conv layer output): {self.feature_maps.shape}")
     
         # Preparing for LSTM
         x = x.permute(0, 2, 1)  # Adjust dimensions for LSTM input
         print(f"Shape before LSTM: {x.shape}")
         x, _ = self.lstm(x)
-        #print(f"Shape after LSTM: {x.shape}")
+        print(f"Shape after LSTM: {x.shape}")
     
         # Applying Multi-head attention
         query = x.permute(1, 0, 2)
         attention_output, attention_weights = self.attention(query, query, query)
         attention_output = attention_output.permute(1, 0, 2)
         print(f"Attention output shape: {attention_output.shape}")
-    
-        # Applying the fully connected layer
+
         x = self.fc(attention_output[:, -1, :])
-        #print(f"Output shape after FC layer: {x.shape}")
-    
-        return x, attention_weights, self.feature_maps
+        print(f"Logits: {x}")
+        print(f"Output shape after FC layer: {x.shape}")
+
+        # Apply softmax to convert logits to probabilities
+        probabilities = torch.softmax(x, dim=1)
+        print(f"Probabilities: {probabilities}")
+
+        return probabilities, attention_weights, self.feature_maps
 
 
 
@@ -136,11 +135,11 @@ class ConvLSTMCAMbiotic(pl.LightningModule):
     def configure_optimizers(self):
         """Configure the optimizer for the model."""
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-
+    
     def compute_metrics(self, y_hat, y, metrics):
         """Compute and return the metrics for the model."""
-        y_hat_sigmoid = torch.sigmoid(y_hat)
-        return metrics(y_hat_sigmoid, y.int())
+        return metrics(y_hat, y)
+
 
     def step(self, batch, batch_idx, metrics):
         x, y = batch
@@ -153,7 +152,9 @@ class ConvLSTMCAMbiotic(pl.LightningModule):
         if y_hat.dim() > 1 and y_hat.shape[1] == 1:
             y_hat = y_hat.squeeze(1)
 
-        loss = F.binary_cross_entropy_with_logits(y_hat, y)
+        # Compute loss
+        loss = nn.CrossEntropyLoss()(y_hat, y)  # Use CrossEntropyLoss for multilevel classification
+
 
         # Compute metrics
         metric_results = self.compute_metrics(y_hat, y, metrics)
