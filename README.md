@@ -11,7 +11,7 @@ This repository contains the implementation of a deep learning model for binary 
 - **Data Loader (`data_loader.py`)**: Implements a PyTorch Lightning DataModule for efficient data handling and batching.
 - **Model (`model.py`)**: Defines the neural network architecture combining convolutional, LSTM layers, and multi-head attention, focusing on learning from the structural patterns in SMILES data.
 - **Training (`trainer.py`)**: Facilitates model training with checkpoints, hyperparameter configuration, and TensorBoard logging.
-- **Visualization (`visualization.ipynb`)**: Jupyter Notebook for visualizing activation maps on molecular structures, offering insights into the model's focal points.
+- **Attention_Viz.ipynb`)** and **Grad_CAM_Viz.ipynb**: Jupyter Notebook for visualizing activation maps on molecular structures, offering insights into the model's focal points.
 
 ## Installation
 To set up the project, follow these steps:
@@ -54,12 +54,12 @@ To use the project, follow these steps:
 
 ### Visualization of Activation Maps
 
-- To visualize the model's focus through activation maps on molecular structures, run the `Grad_CAM MAP.ipynb` and `Attention_MAP.ipynb` notebook in Jupyter:
+- To visualize the model's focus through activation maps on molecular structures, run the `Grad_CAM_Viz.ipynb` and `Attention__Viz.ipynb` notebook in Jupyter: You can replace with your own SMILES. Ensure to load the pretrained model
   ```sh
-  jupyter notebook Grad_CAM MAP.ipynb
+  jupyter notebook Grad_CAM_Viz.ipynb
   ```
    ```sh
-  jupyter notebook Attention_MAP.ipynb
+  jupyter notebook Attention_Viz.ipynb
     ```
 - Follow the instructions within the notebook to load a trained model checkpoint and visualize activation maps on specified SMILES strings.
 
